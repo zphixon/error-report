@@ -19,6 +19,7 @@ pub enum Message {
     Error(Error, Sender<DefaultKey>),
     Update(DefaultKey, String),
     ForEach(fn(&MyError)),
+    ForEachMut(fn(&mut MyError)),
     Quit,
 }
 
@@ -28,6 +29,7 @@ impl std::fmt::Debug for Message {
             Message::Error(err, _) => write!(f, "Error({err:?})"),
             Message::Update(_, s) => write!(f, "Update({s:?})"),
             Message::ForEach(_) => write!(f, "ForEach(...)"),
+            Message::ForEachMut(_) => write!(f, "ForEachMut(...)"),
             Message::Quit => write!(f, "Quit"),
         }
     }
@@ -99,6 +101,12 @@ fn handle_messages(message_rx: Receiver<Message>) -> SlotMap<DefaultKey, MyError
                 }
             }
 
+            Ok(Message::ForEachMut(f)) => {
+                for (_, error) in errors.iter_mut() {
+                    f(error);
+                }
+            }
+
             Ok(Message::Quit) => {
                 break;
             }
@@ -140,4 +148,9 @@ pub fn update_error(key: DefaultKey, extra: String) {
 pub fn for_each_error(f: fn(&MyError)) {
     let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
     msg_tx.send(Message::ForEach(f)).unwrap();
+}
+
+pub fn for_each_mut_error(f: fn(&mut MyError)) {
+    let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
+    msg_tx.send(Message::ForEachMut(f)).unwrap();
 }
