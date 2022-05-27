@@ -2,7 +2,7 @@ fn main() {
     let t = error_report::init();
 
     let t1 = std::thread::spawn(|| {
-        error_report::report!("dang1".to_string());
+        error_report::report!("dang1");
         error_report::for_each_error(|error| {
             #[cfg(windows)]
             unsafe {
@@ -18,7 +18,7 @@ fn main() {
     });
 
     let t2 = std::thread::spawn(|| {
-        let key = error_report::report!("dang2".to_string());
+        let key = error_report::report!("dang2");
         error_report::update_error(key, "extra stuff".to_string());
     });
 
