@@ -13,7 +13,7 @@ macro_rules! report {
     };
 }
 
-const INIT_MSG: &'static str = "init() should be called once";
+const INIT_MSG: &'static str = "init() should be called once, and its result not discarded.\nlet errors = error_report::init(); // do not assign to _, you must include a name";
 
 pub enum Message {
     Error(Error, Sender<DefaultKey>),
@@ -64,7 +64,7 @@ impl ErrorThread {
     pub fn done(mut self) -> SlotMap<DefaultKey, MyError> {
         println!("called done");
         let tx = MSG_TX.get().expect(INIT_MSG).clone();
-        tx.send(Message::Quit).unwrap();
+        tx.send(Message::Quit).expect(INIT_MSG);
         self.handle.take().unwrap().join().unwrap()
     }
 }
@@ -86,7 +86,7 @@ fn handle_messages(message_rx: Receiver<Message>) -> SlotMap<DefaultKey, MyError
         match message {
             Ok(Message::Error(error, sender)) => {
                 let key = errors.insert(MyError { error, extra: None });
-                sender.send(key).unwrap();
+                sender.send(key).expect(INIT_MSG);
             }
 
             Ok(Message::Update(key, extra)) => {
@@ -122,6 +122,7 @@ fn handle_messages(message_rx: Receiver<Message>) -> SlotMap<DefaultKey, MyError
     errors
 }
 
+#[must_use]
 pub fn init() -> ErrorThread {
     let (message_tx, message_rx) = flume::unbounded();
     MSG_TX.set(message_tx).expect(INIT_MSG);
@@ -136,21 +137,21 @@ pub fn init() -> ErrorThread {
 pub fn report_error(error: Error) -> DefaultKey {
     let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
     let (key_tx, key_rx) = flume::bounded(1);
-    msg_tx.send(Message::Error(error, key_tx)).unwrap();
-    key_rx.recv().unwrap()
+    msg_tx.send(Message::Error(error, key_tx)).expect(INIT_MSG);
+    key_rx.recv().expect(INIT_MSG)
 }
 
 pub fn update_error(key: DefaultKey, extra: String) {
     let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
-    msg_tx.send(Message::Update(key, extra)).unwrap();
+    msg_tx.send(Message::Update(key, extra)).expect(INIT_MSG);
 }
 
 pub fn for_each_error(f: fn(&MyError)) {
     let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
-    msg_tx.send(Message::ForEach(f)).unwrap();
+    msg_tx.send(Message::ForEach(f)).expect(INIT_MSG);
 }
 
 pub fn for_each_mut_error(f: fn(&mut MyError)) {
     let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
-    msg_tx.send(Message::ForEachMut(f)).unwrap();
+    msg_tx.send(Message::ForEachMut(f)).expect(INIT_MSG);
 }
