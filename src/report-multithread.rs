@@ -1,5 +1,8 @@
+use error_report::ErrorThread;
+
 fn main() {
-    let t = error_report::init();
+    let mut et = ErrorThread::default();
+    error_report::init(&mut et);
 
     let t1 = std::thread::spawn(|| {
         error_report::report!("dang1");
@@ -25,7 +28,7 @@ fn main() {
     t1.join().unwrap();
     t2.join().unwrap();
 
-    let errors = t.done();
+    let errors = et.done();
     for (_key, error) in &errors {
         println!("{:?}", error);
     }
