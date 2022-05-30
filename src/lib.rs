@@ -145,7 +145,7 @@ impl ErrorThread {
     ///
     /// Panics if [init] has not been called.
     pub fn done(mut self) -> SlotMap<DefaultKey, MyError> {
-        let tx = MSG_TX.get().expect(INIT_MSG).clone();
+        let tx = MSG_TX.get().expect(INIT_MSG);
         tx.send(Message::Quit).expect(INIT_MSG);
         self.handle.take().unwrap().join().unwrap()
     }
@@ -153,7 +153,7 @@ impl ErrorThread {
 
 impl Drop for ErrorThread {
     fn drop(&mut self) {
-        let tx = MSG_TX.get().expect(INIT_MSG).clone();
+        let tx = MSG_TX.get().expect(INIT_MSG);
         let _x = tx.send(Message::Quit);
     }
 }
@@ -236,8 +236,7 @@ pub fn init(error_thread: &mut ErrorThread) {
 ///
 /// Panics if [init] has not been called or [ErrorThread::done] has been called.
 pub fn report_error(error: Error) -> DefaultKey {
-    // TODO are these clones necessary?
-    let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
+    let msg_tx = MSG_TX.get().expect(INIT_MSG);
     let (key_tx, key_rx) = flume::bounded(1);
     msg_tx.send(Message::Error(error, key_tx)).expect(INIT_MSG);
     key_rx.recv().expect(INIT_MSG)
@@ -249,7 +248,7 @@ pub fn report_error(error: Error) -> DefaultKey {
 ///
 /// Panics if [init] has not been called or [ErrorThread::done] has been called.
 pub fn update_error(key: DefaultKey, extra: String) {
-    let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
+    let msg_tx = MSG_TX.get().expect(INIT_MSG);
     msg_tx.send(Message::Update(key, extra)).expect(INIT_MSG);
 }
 
@@ -259,7 +258,7 @@ pub fn update_error(key: DefaultKey, extra: String) {
 ///
 /// Panics if [init] has not been called or [ErrorThread::done] has been called.
 pub fn for_each_error(f: fn(&MyError)) {
-    let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
+    let msg_tx = MSG_TX.get().expect(INIT_MSG);
     msg_tx.send(Message::ForEach(f)).expect(INIT_MSG);
 }
 
@@ -269,6 +268,6 @@ pub fn for_each_error(f: fn(&MyError)) {
 ///
 /// Panics if [init] has not been called or [ErrorThread::done] has been called.
 pub fn for_each_mut_error(f: fn(&mut MyError)) {
-    let msg_tx = MSG_TX.get().expect(INIT_MSG).clone();
+    let msg_tx = MSG_TX.get().expect(INIT_MSG);
     msg_tx.send(Message::ForEachMut(f)).expect(INIT_MSG);
 }
