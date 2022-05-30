@@ -1,6 +1,7 @@
 error_report::make_reporter!(MyError<String>);
 
-fn main() {
+#[test]
+fn test() {
     let mut et = ErrorThread::default();
     MyError::init(&mut et);
 

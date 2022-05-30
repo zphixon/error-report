@@ -2,7 +2,6 @@
 name = 'error-report'
 version = '0.1.0'
 edition = '2021'
-default-run = 'report-multithread'
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,11 +19,3 @@ features = [
     'Win32_UI_WindowsAndMessaging',
     'Win32_Foundation',
 ]
-
-[[bin]]
-path = 'src/report-multithread.rs'
-name = 'report-multithread'
-
-[[bin]]
-path = 'src/random.rs'
-name = 'random'

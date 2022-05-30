@@ -7,7 +7,8 @@ const PROGRESS_WIDTH: usize = 60;
 
 error_report::make_reporter!(Idk);
 
-fn main() {
+#[test]
+fn test() {
     let mut et = ErrorThread::default();
     Idk::init(&mut et);
 
