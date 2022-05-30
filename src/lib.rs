@@ -2,32 +2,47 @@
 
 //! Report errors concurrently.
 //!
-//! When you [report!] an error, that error is sent to an error collection thread (represented by
-//! [ErrorThread]), and you receive a [key](DefaultKey) which corresponds to that error. Then you
-//! can come back to that error later if you've realized something new, and add some additional
+//! When you `report!` an error, that error is sent to an error collection thread (represented by
+//! `ErrorThread`), and you receive a `DefaultKey` which corresponds to that error. Then you can
+//! come back to that error later if you've realized something new, and add some additional
 //! context.
 //!
 //! ```
+//! // optionally define some extra information
 //! #[derive(Debug)]
 //! pub struct ExtraInfo {
 //!     extra: String,
 //! }
 //!
+//! // define your error reporter: introduces MyError, ErrorThread, and report! to the namespace
 //! error_report::make_reporter!(MyError<ExtraInfo>);
 //!
 //! fn main() {
+//!     // create a new error thread and initialize it
 //!     let mut et = ErrorThread::default();
 //!     MyError::init(&mut et);
 //!
-//!     let key = report!("dang");
-//!     // do some other stuff, maybe gather more information about that error
+//!     // maybe in another thread
+//!     std::thread::spawn(|| {
+//!         // do some stuff and run into a problem
+//!         let key = report!("dang");
 //!
-//!     let why = "something heinous";
-//!     MyError::update(key, ExtraInfo { extra: format!("this is why: {why}") });
+//!         // do some other stuff, maybe gathering more information about that error
+//!         let why = "something heinous";
+//!         MyError::update(key, ExtraInfo { extra: format!("this is why: {why}") });
 //!
-//!     MyError::for_each(|error| {
-//!         println!("oh no: {error:?}");
+//!         // do stuff with your errors
+//!         MyError::for_each(|error| {
+//!             println!("oh no: {error:?}");
+//!         });
 //!     });
+//!
+//!     std::thread::sleep(std::time::Duration::from_secs(1));
+//!
+//!     // finish up - done() will call join() on the error collecting thread
+//!     let errors = et.done();
+//!     assert_eq!(1, errors.len());
+//!     println!("wow, we had {} errors", errors.len());
 //! }
 //! ```
 
@@ -230,7 +245,7 @@ macro_rules! make_reporter {
             pub fn done(mut self) -> SlotMap<DefaultKey, $ErrorName> {
                 let tx = MSG_TX.get().expect(INIT_MSG);
                 tx.send(Message::Quit).expect(INIT_MSG);
-                self.handle.take().unwrap().join().unwrap()
+                self.handle.take().expect(INIT_MSG).join().unwrap()
             }
         }
 
