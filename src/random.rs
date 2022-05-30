@@ -5,12 +5,12 @@ error_report::make_reporter!(Idk<usize>);
 
 fn main() {
     let mut et = ErrorThread::default();
-    init_reporter(&mut et);
+    Idk::init(&mut et);
 
     let thread = || {
         for i in 0..NUM_ERRORS {
             let key = report!("");
-            update_error(key, i);
+            Idk::update(key, i);
         }
     };
 

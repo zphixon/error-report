@@ -17,15 +17,15 @@
 //!
 //! fn main() {
 //!     let mut et = ErrorThread::default();
-//!     init(&mut et);
+//!     MyError::init(&mut et);
 //!
 //!     let key = report!("dang");
 //!     // do some other stuff, maybe gather more information about that error
 //!
 //!     let why = "something heinous";
-//!     update_error(key, ExtraInfo { extra: format!("this is why: {why}") });
+//!     MyError::update(key, ExtraInfo { extra: format!("this is why: {why}") });
 //!
-//!     for_each_error(|error| {
+//!     MyError::for_each(|error| {
 //!         println!("oh no: {error:?}");
 //!     });
 //! }
@@ -41,6 +41,9 @@ macro_rules! make_reporter {
             slotmap::{DefaultKey, SlotMap},
             std::thread::JoinHandle,
         };
+
+        /// The [Sender] responsible for sending [Message]s to the error collector thread.
+        static MSG_TX: OnceCell<Sender<Message>> = OnceCell::new();
 
         #[derive(Debug)]
         pub struct $ErrorName {
@@ -66,23 +69,87 @@ macro_rules! make_reporter {
             pub fn extra_mut(&mut self) -> Option<&mut $T> {
                 self.extra.as_mut()
             }
+
+            /// Initialize the error collector thread.
+            ///
+            /// This is done as a non-associated function on [ErrorThread] to require the user to
+            /// not discard the [ErrorThread] prematurely. This is important as its [Drop]
+            /// implementation quits the error collector thread, dropping the [Receiver] and thus
+            /// causing any subsequent error reports to panic.
+            ///
+            /// # Panics
+            ///
+            /// The function panics if it has already been called.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// let mut et = error_report::ErrorThread::default();
+            /// error_report::init(&mut et);
+            /// ```
+            pub fn init(error_thread: &mut ErrorThread) {
+                let (message_tx, message_rx) = flume::unbounded();
+                MSG_TX.set(message_tx).expect(INIT_MSG);
+
+                let handle = std::thread::spawn(|| handle_messages(message_rx));
+
+                error_thread.handle = Some(handle);
+            }
+
+            /// Report an error.
+            ///
+            /// See also [report!].
+            ///
+            /// # Panics
+            ///
+            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
+            pub fn report(error: Error) -> DefaultKey {
+                let msg_tx = MSG_TX.get().expect(INIT_MSG);
+                let (key_tx, key_rx) = flume::bounded(1);
+                msg_tx.send(Message::Error(error, key_tx)).expect(INIT_MSG);
+                key_rx.recv().expect(INIT_MSG)
+            }
+
+            /// Update an error with additional information.
+            ///
+            /// # Panics
+            ///
+            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
+            pub fn update(key: DefaultKey, extra: $T) {
+                let msg_tx = MSG_TX.get().expect(INIT_MSG);
+                msg_tx.send(Message::Update(key, extra)).expect(INIT_MSG);
+            }
+
+            /// Execute a function for each error.
+            ///
+            /// # Panics
+            ///
+            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
+            pub fn for_each(f: fn(&$ErrorName)) {
+                let msg_tx = MSG_TX.get().expect(INIT_MSG);
+                msg_tx.send(Message::ForEach(f)).expect(INIT_MSG);
+            }
+
+            /// Execute a function for each error, mutably.
+            ///
+            /// # Panics
+            ///
+            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
+            pub fn for_each_mut(f: fn(&mut $ErrorName)) {
+                let msg_tx = MSG_TX.get().expect(INIT_MSG);
+                msg_tx.send(Message::ForEachMut(f)).expect(INIT_MSG);
+            }
         }
-
-
-        // necessary??
-        //fn enforce_send() {
-        //    let (tx, _rx): (flume::Sender<*const $T>, _) = flume::unbounded();
-        //    let _ = tx.send(std::ptr::null());
-        //}
 
         /// Report an error.
         ///
-        /// This macro is a thin shim around [anyhow::anyhow!]. Requires [init] to have been called.
+        /// This macro is a thin shim around [anyhow::anyhow!]. Requires [init] to have been
+        /// called.
         ///
         /// # Panics
         ///
-        /// This macro will panic at runtime if [init] has not been called or [ErrorThread::done] has been
-        /// called.
+        /// This macro will panic at runtime if [init] has not been called or [ErrorThread::done]
+        /// has been called.
         ///
         /// # Examples
         ///
@@ -97,7 +164,7 @@ macro_rules! make_reporter {
         #[macro_export]
         macro_rules! report {
             ($e:expr) => {
-                report_error(anyhow::anyhow!($e))
+                $ErrorName::report(anyhow::anyhow!($e))
             };
         }
 
@@ -214,78 +281,6 @@ macro_rules! make_reporter {
             }
 
             errors
-        }
-
-        /// The [Sender] responsible for sending [Message]s to the error collector thread.
-        static MSG_TX: OnceCell<Sender<Message>> = OnceCell::new();
-
-        /// Initialize the error collector thread.
-        ///
-        /// This is done as a non-associated function to require the user to not discard the [ErrorThread]
-        /// prematurely. This is important as its [Drop] implementation quits the error collector thread,
-        /// dropping the [Receiver] and thus causing any subsequent error reports to panic.
-        ///
-        /// # Panics
-        ///
-        /// The function panics if it has already been called.
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// let mut et = error_report::ErrorThread::default();
-        /// error_report::init(&mut et);
-        /// ```
-        pub fn init_reporter(error_thread: &mut ErrorThread) {
-            let (message_tx, message_rx) = flume::unbounded();
-            MSG_TX.set(message_tx).expect(INIT_MSG);
-
-            let handle = std::thread::spawn(|| handle_messages(message_rx));
-
-            error_thread.handle = Some(handle);
-        }
-
-        /// Report an error.
-        ///
-        /// See also [report!].
-        ///
-        /// # Panics
-        ///
-        /// Panics if [init] has not been called or [ErrorThread::done] has been called.
-        pub fn report_error(error: Error) -> DefaultKey {
-            let msg_tx = MSG_TX.get().expect(INIT_MSG);
-            let (key_tx, key_rx) = flume::bounded(1);
-            msg_tx.send(Message::Error(error, key_tx)).expect(INIT_MSG);
-            key_rx.recv().expect(INIT_MSG)
-        }
-
-        /// Update an error with additional information.
-        ///
-        /// # Panics
-        ///
-        /// Panics if [init] has not been called or [ErrorThread::done] has been called.
-        pub fn update_error(key: DefaultKey, extra: $T) {
-            let msg_tx = MSG_TX.get().expect(INIT_MSG);
-            msg_tx.send(Message::Update(key, extra)).expect(INIT_MSG);
-        }
-
-        /// Execute a function for each error.
-        ///
-        /// # Panics
-        ///
-        /// Panics if [init] has not been called or [ErrorThread::done] has been called.
-        pub fn for_each_error(f: fn(&$ErrorName)) {
-            let msg_tx = MSG_TX.get().expect(INIT_MSG);
-            msg_tx.send(Message::ForEach(f)).expect(INIT_MSG);
-        }
-
-        /// Execute a function for each error, mutably.
-        ///
-        /// # Panics
-        ///
-        /// Panics if [init] has not been called or [ErrorThread::done] has been called.
-        pub fn for_each_mut_error(f: fn(&mut $ErrorName)) {
-            let msg_tx = MSG_TX.get().expect(INIT_MSG);
-            msg_tx.send(Message::ForEachMut(f)).expect(INIT_MSG);
         }
     };
 }
