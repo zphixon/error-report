@@ -1,15 +1,16 @@
-use error_report::{report, ErrorThread};
-
 const NUM_ERRORS: usize = 5000;
-const NUM_THREADS: usize = 1000;
+const NUM_THREADS: usize = 100;
+
+error_report::make_reporter!(Idk<usize>);
 
 fn main() {
     let mut et = ErrorThread::default();
-    error_report::init(&mut et);
+    init_reporter(&mut et);
 
     let thread = || {
         for i in 0..NUM_ERRORS {
-            report!(format!("error {i}"));
+            let key = report!("");
+            update_error(key, i);
         }
     };
 

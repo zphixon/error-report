@@ -1,12 +1,12 @@
-use error_report::ErrorThread;
+error_report::make_reporter!(Idk<String>);
 
 fn main() {
     let mut et = ErrorThread::default();
-    error_report::init(&mut et);
+    init_reporter(&mut et);
 
     let t1 = std::thread::spawn(|| {
-        error_report::report!("dang1");
-        error_report::for_each_error(|error| {
+        report!("dang1");
+        for_each_error(|error| {
             #[cfg(windows)]
             unsafe {
                 windows::Win32::UI::WindowsAndMessaging::MessageBoxW(
@@ -21,8 +21,8 @@ fn main() {
     });
 
     let t2 = std::thread::spawn(|| {
-        let key = error_report::report!("dang2");
-        error_report::update_error(key, "extra stuff".to_string());
+        let key = report!("dang2");
+        update_error(key, "extra stuff".to_string());
     });
 
     t1.join().unwrap();
