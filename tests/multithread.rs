@@ -30,7 +30,11 @@ fn test() {
     t2.join().unwrap();
 
     let errors = et.done();
-    for (_key, error) in &errors {
-        println!("{:?}", error);
+    for (_, error) in errors.iter() {
+        assert!(format!("{:?}", error.error()).starts_with("dang"));
+        if error.extra().is_some() {
+            assert_eq!(error.extra().unwrap(), &String::from("extra stuff"));
+        }
     }
+    assert_eq!(errors.len(), 2);
 }
