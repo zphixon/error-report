@@ -145,7 +145,6 @@ impl ErrorThread {
     ///
     /// Panics if [init] has not been called.
     pub fn done(mut self) -> SlotMap<DefaultKey, MyError> {
-        println!("called done");
         let tx = MSG_TX.get().expect(INIT_MSG).clone();
         tx.send(Message::Quit).expect(INIT_MSG);
         self.handle.take().unwrap().join().unwrap()
@@ -154,7 +153,6 @@ impl ErrorThread {
 
 impl Drop for ErrorThread {
     fn drop(&mut self) {
-        println!("dropped");
         let tx = MSG_TX.get().expect(INIT_MSG).clone();
         let _x = tx.send(Message::Quit);
     }
@@ -165,7 +163,6 @@ fn handle_messages(message_rx: Receiver<Message>) -> SlotMap<DefaultKey, MyError
 
     loop {
         let message = message_rx.recv();
-        println!("get message {message:?}");
         match message {
             Ok(Message::Error(error, sender)) => {
                 let key = errors.insert(MyError { error, extra: None });
@@ -199,8 +196,6 @@ fn handle_messages(message_rx: Receiver<Message>) -> SlotMap<DefaultKey, MyError
             }
         }
     }
-
-    println!("exiting");
 
     errors
 }
