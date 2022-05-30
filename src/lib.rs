@@ -48,6 +48,10 @@
 
 #[macro_export]
 macro_rules! make_reporter {
+    ($ErrorName:ident) => {
+        $crate::make_reporter!($ErrorName<()>);
+    };
+
     ($ErrorName:ident < $T:ty >) => {
         use {
             anyhow::Error,
