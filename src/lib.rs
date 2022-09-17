@@ -152,8 +152,9 @@ macro_rules! make_reporter {
             ///
             #[doc = concat!("[", stringify!($ErrorName), "::init]")]
             /// must have been called and [ErrorThread::done] must not have been called.
+            pub fn for_each(f: impl FnMut(&$ErrorName) + 'static) {
                 let msg_tx = MSG_TX.get().expect(INIT_MSG);
-                msg_tx.send(Message::ForEach(f)).expect(INIT_MSG);
+                msg_tx.send(Message::ForEach(Box::new(f))).expect(INIT_MSG);
             }
 
             /// Execute a function for each error, mutably.
@@ -162,8 +163,9 @@ macro_rules! make_reporter {
             ///
             #[doc = concat!("[", stringify!($ErrorName), "::init]")]
             /// must have been called and [ErrorThread::done] must not have been called.
+            pub fn for_each_mut(f: impl FnMut(&mut $ErrorName) + 'static) {
                 let msg_tx = MSG_TX.get().expect(INIT_MSG);
-                msg_tx.send(Message::ForEachMut(f)).expect(INIT_MSG);
+                msg_tx.send(Message::ForEachMut(Box::new(f))).expect(INIT_MSG);
             }
         }
 
@@ -212,10 +214,10 @@ macro_rules! make_reporter {
             Update(DefaultKey, $T),
 
             /// Execute a function for each error.
-            ForEach(fn(&$ErrorName)),
+            ForEach(Box<dyn FnMut(&$ErrorName)>),
 
             /// Execute a function for each error, mutably.
-            ForEachMut(fn(&mut $ErrorName)),
+            ForEachMut(Box<dyn FnMut(&mut $ErrorName)>),
 
             /// Exit the error collector thread.
             ///
@@ -289,13 +291,13 @@ macro_rules! make_reporter {
                         }
                     }
 
-                    Ok(Message::ForEach(f)) => {
+                    Ok(Message::ForEach(mut f)) => {
                         for (_, error) in errors.iter() {
                             f(error);
                         }
                     }
 
-                    Ok(Message::ForEachMut(f)) => {
+                    Ok(Message::ForEachMut(mut f)) => {
                         for (_, error) in errors.iter_mut() {
                             f(error);
                         }

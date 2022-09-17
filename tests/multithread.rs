@@ -7,7 +7,10 @@ fn test() {
 
     let t1 = std::thread::spawn(|| {
         report!("dang1");
-        MyError::for_each(|error| {
+        let mut i = 0;
+        MyError::for_each(move |error| {
+            println!("inner! {error:?} {i}");
+            i += 1;
             #[cfg(windows)]
             unsafe {
                 windows::Win32::UI::WindowsAndMessaging::MessageBoxW(
@@ -17,7 +20,6 @@ fn test() {
                     windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
                 );
             }
-            println!("inner! {error:?}");
         });
     });
 
