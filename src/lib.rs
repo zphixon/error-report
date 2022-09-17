@@ -46,6 +46,9 @@
 //! }
 //! ```
 
+/// Macro to create error reporting infrastructure.
+///
+/// See [example::ExampleReporter] for the generated API.
 #[macro_export]
 macro_rules! make_reporter {
     ($ErrorName:ident) => {
@@ -64,6 +67,7 @@ macro_rules! make_reporter {
         /// The [Sender] responsible for sending [Message]s to the error collector thread.
         static MSG_TX: OnceCell<Sender<Message>> = OnceCell::new();
 
+        /// The error type for this reporter.
         #[derive(Debug)]
         pub struct $ErrorName {
             error: Error,
@@ -98,13 +102,14 @@ macro_rules! make_reporter {
             ///
             /// # Panics
             ///
-            /// The function panics if it has already been called.
+            /// The function must not already have been called.
             ///
             /// # Examples
             ///
             /// ```
-            /// let mut et = error_report::ErrorThread::default();
-            /// error_report::init(&mut et);
+            /// error_report::make_reporter!(DocTest);
+            /// let mut et = ErrorThread::default();
+            /// DocTest::init(&mut et);
             /// ```
             pub fn init(error_thread: &mut ErrorThread) {
                 let (message_tx, message_rx) = flume::unbounded();
@@ -121,7 +126,8 @@ macro_rules! make_reporter {
             ///
             /// # Panics
             ///
-            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
+            #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+            /// must have been called and [ErrorThread::done] must not have been called.
             pub fn report(error: Error) -> DefaultKey {
                 let msg_tx = MSG_TX.get().expect(INIT_MSG);
                 let (key_tx, key_rx) = flume::bounded(1);
@@ -133,7 +139,8 @@ macro_rules! make_reporter {
             ///
             /// # Panics
             ///
-            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
+            #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+            /// must have been called and [ErrorThread::done] must not have been called.
             pub fn update(key: DefaultKey, extra: $T) {
                 let msg_tx = MSG_TX.get().expect(INIT_MSG);
                 msg_tx.send(Message::Update(key, extra)).expect(INIT_MSG);
@@ -143,8 +150,8 @@ macro_rules! make_reporter {
             ///
             /// # Panics
             ///
-            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
-            pub fn for_each(f: fn(&$ErrorName)) {
+            #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+            /// must have been called and [ErrorThread::done] must not have been called.
                 let msg_tx = MSG_TX.get().expect(INIT_MSG);
                 msg_tx.send(Message::ForEach(f)).expect(INIT_MSG);
             }
@@ -153,8 +160,8 @@ macro_rules! make_reporter {
             ///
             /// # Panics
             ///
-            /// Panics if [init] has not been called or [ErrorThread::done] has been called.
-            pub fn for_each_mut(f: fn(&mut $ErrorName)) {
+            #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+            /// must have been called and [ErrorThread::done] must not have been called.
                 let msg_tx = MSG_TX.get().expect(INIT_MSG);
                 msg_tx.send(Message::ForEachMut(f)).expect(INIT_MSG);
             }
@@ -162,23 +169,26 @@ macro_rules! make_reporter {
 
         /// Report an error.
         ///
-        /// This macro is a thin shim around [anyhow::anyhow!]. Requires [init] to have been
-        /// called.
+        /// This macro is a thin shim around [anyhow::anyhow!]. Requires
+        #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+        /// to have been called.
         ///
         /// # Panics
         ///
-        /// This macro will panic at runtime if [init] has not been called or [ErrorThread::done]
-        /// has been called.
+        /// This macro will panic at runtime if
+        #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+        /// has not been called or [ErrorThread::done] has been called.
         ///
         /// # Examples
         ///
         /// ```
-        /// # let mut et = error_report::ErrorThread::default();
-        /// # error_report::init(&mut et);
-        /// let key = error_report::report!("dang");
+        /// error_report::make_reporter!(DocTest<String>);
+        /// let mut et = ErrorThread::default();
+        /// DocTest::init(&mut et);
+        /// let key = report!("dang");
         /// // do some other stuff, maybe gather more information about that error
         /// let why = "something heinous";
-        /// error_report::update_error(key, format!("this is why: {why}"));
+        /// DocTest::update(key, format!("this is why: {why}"));
         /// ```
         #[macro_export]
         macro_rules! report {
@@ -245,7 +255,9 @@ macro_rules! make_reporter {
             ///
             /// # Panics
             ///
-            /// Panics if [init] has not been called.
+            /// Panics if
+            #[doc = concat!("[", stringify!($ErrorName), "::init]")]
+            /// has not been called.
             pub fn done(mut self) -> SlotMap<DefaultKey, $ErrorName> {
                 let tx = MSG_TX.get().expect(INIT_MSG);
                 tx.send(Message::Quit).expect(INIT_MSG);
